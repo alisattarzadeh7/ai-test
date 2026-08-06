@@ -1,65 +1,38 @@
-import os
-import sys
 
-os.environ["USER_AGENT"] = "my-langchain-app"
-sys.stdout.reconfigure(encoding="utf-8")
-
-from langchain_community.document_loaders import WebBaseLoader
-from litellm import completion
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
-
-# 1. Choose the webpage containing your custom data.
-URL = "https://vakilnoor.ir/posts"
-
-# 2. Load the webpage as a LangChain document.
-raw_documents = WebBaseLoader(URL).load()
-text_splitter = RecursiveCharacterTextSplitter()
-documents = text_splitter.split_documents(raw_documents)
-
-embeddings = OpenAIEmbeddings(
-    model="text-embedding-nomic-embed-text-v1.5",
-    base_url="http://192.168.244.67:1234/v1",
-    api_key="lm-studio",
-    check_embedding_ctx_length=False,
-)
-
-from langchain_core.vectorstores import InMemoryVectorStore
-
-vector_store = InMemoryVectorStore.from_documents(
-    documents=documents,
-    embedding=embeddings,
-)
+import pandas as pd
+import numpy as np
+from cleantext import clean
+import re
+from transformers import XLNetTokenizer, XLNetForSequenceClassification, TrainingArguments, Trainer, pipeline
+import torch
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import datasets
+import evaluate
+import random
 
 
-question = "what is latest post of vakilnoor website?"
+
+data_train = pd.read_csv('./emotion-labels-train.csv')
+data_test = pd.read_csv('./emotion-labels-test.csv')
+data_val = pd.read_csv('./emotion-labels-val.csv')
+
+data_train.head()
+
+data = pd.concat([data_train, data_test, data_val], ignore_index=True)
+
+data['text_clean']  = data['text'].apply(lambda x: clean(x,no_emoji=True))
+
+data['text_clean'] = data['text_clean'].apply(lambda x: re.sub(r'@[^\s]+','',x))
+
+data.head(20)
+
+data['label'].value_counts().plot(kind='bar')
+
+g = data.groupby('label')
+data = pd.DataFrame(g.apply(lambda x: x.sample(g.size().min())).reset_index(drop=True))
+
+data['label'].value_counts().plot(kind='bar')
 
 
-results = vector_store.similarity_search(question, k=3)
 
-webpage_text = "\n\n".join(
-    document.page_content for document in results
-)
-# 3. Ask a question about that data.
-
-# 4. Give the webpage text and question to the model.
-response = completion(
-    model="openai/google/gemma-3-4b",
-    api_base="http://192.168.244.67:1234/v1",
-    api_key="lm-studio",
-    messages=[
-        {
-            "role": "system",
-            "content": "Answer only from the provided webpage content.",
-        },
-        {
-            "role": "user",
-            "content": f"Webpage content:\n{webpage_text}\n\nQuestion: {question}",
-        },
-    ],
-    max_tokens=256,
-    timeout=60,
-)
-
-# 5. Print the answer.
-print(response.choices[0].message.content)
