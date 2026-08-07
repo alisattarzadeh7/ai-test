@@ -6,7 +6,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from litellm import completion
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda
+from langchain_core.runnables import RunnableLambda, RunnableGenerator
 
 chat_template = ChatPromptTemplate.from_messages([
     (
@@ -17,35 +17,41 @@ chat_template = ChatPromptTemplate.from_messages([
 ])
 
 
-def call_llm(prompt_value):
-    # Convert LangChain messages -> OpenAI/LiteLLM format
-    messages = [
-        {
-            "role": "user" if msg.type == "human" else msg.type,
-            "content": msg.content
-        }
-        for msg in prompt_value.to_messages()
-    ]
 
-    response = completion(
-        model="openai/google/gemma-3-4b",
-        api_base="http://192.168.244.67:1234/v1",
-        api_key="lm-studio",
-        messages=messages,
-        max_tokens=256,
-        timeout=60,
-    )
+def call_llm_stream(input_stream):
+    for prompt_value in input_stream:
 
-    return response.choices[0].message.content
+        messages = [
+            {
+                "role": "user" if msg.type == "human" else msg.type,
+                "content": msg.content
+            }
+            for msg in prompt_value.to_messages()
+        ]
+
+        response = completion(
+            model="openai/google/gemma-3-4b",
+            api_base="http://192.168.244.67:1234/v1",
+            api_key="lm-studio",
+            messages=messages,
+            max_tokens=256,
+            timeout=60,
+            stream=True,
+        )
+
+        for chunk in response:
+            content = chunk.choices[0].delta.content
+
+            if content:
+                yield content
 
 
-llm = RunnableLambda(call_llm)
+llm = RunnableGenerator(call_llm_stream)
 
 chain = chat_template | llm
 
 
 inputs = [
-    {"pet": "dog", "breed": "Labrador"},
     {"pet": "dog", "breed": "German Shepherd"},
     {"pet": "cat", "breed": "Siamese"},
     {"pet": "dog", "breed": "Golden Retriever"},
@@ -53,6 +59,9 @@ inputs = [
 
 responses = chain.batch(inputs)
 
-for input_data, response in zip(inputs, responses):
-    print(f"\n{input_data['pet']} - {input_data['breed']}")
-    print(response)
+response = chain.stream({
+"pet": "dog", "breed": "Labrador"
+})
+
+for i in response:
+    print(i,end = '')
