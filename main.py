@@ -72,3 +72,5 @@ strategy = chain_combined.invoke({'job_title': 'frontend developer'})
 
 
 print(strategy)
+
+chain_combined.get_graph().print_ascii()
