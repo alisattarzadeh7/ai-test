@@ -3,7 +3,7 @@ import sys
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.runnables import RunnableParallel
 from langchain_openai import ChatOpenAI
 
 os.environ["USER_AGENT"] = "my-langchain-app"
@@ -27,50 +27,32 @@ llm = ChatOpenAI(
 # Prompts
 # -------------------------
 
-chat_template_tools = ChatPromptTemplate.from_template("""
-What are the five most important tools a {job_title} needs?
-
-Answer only by listing the tools.
+chat_template_books = ChatPromptTemplate.from_template("""
+suggest three of the best intermediate-level {programming_language} books.
+answer only by listing the books.
 """)
 
 
-chat_template_strategy = ChatPromptTemplate.from_template("""
-Considering the tools provided, develop a strategy for effectively
-learning and mastering them:
-
-{tools}
+chat_template_projects = ChatPromptTemplate.from_template("""
+suggest three interesting {programming_language} projects suitable for intermediate-level programmers.
+answer only by listing the projects.
 """)
 
 
-# -------------------------
-# Chains
-# -------------------------
 
-tools_chain = chat_template_tools | llm | StrOutputParser() | {'tools': RunnablePassthrough()}
+string_parser = StrOutputParser()
 
-strategy_chain = (
-    chat_template_strategy
-    | llm
-    | StrOutputParser()
-)
+chain_books = chat_template_books | llm | string_parser
 
+chain_projects = chat_template_projects | llm | string_parser
 
-# -------------------------
-# Run first chain
-# -------------------------
+chain_parrallel = RunnableParallel({
+    'books': chain_books,
+    'projects': chain_projects,
+})
 
-chain_combined = tools_chain | strategy_chain
-
-
-
-# -------------------------
-# Feed result into second
-# -------------------------
-
-strategy = chain_combined.invoke({'job_title': 'frontend developer'})
-
-
-
-print(strategy)
-
-chain_combined.get_graph().print_ascii()
+output = chain_parrallel.invoke({
+    'programming_language':'Python'
+})
+print(output)
+chain_parrallel.get_graph().print_ascii()
