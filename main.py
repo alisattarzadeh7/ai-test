@@ -1,67 +1,74 @@
 import os
 import sys
 
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_openai import ChatOpenAI
+
 os.environ["USER_AGENT"] = "my-langchain-app"
 sys.stdout.reconfigure(encoding="utf-8")
 
-from litellm import completion
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnableGenerator
 
-chat_template = ChatPromptTemplate.from_messages([
-    (
-        "human",
-        "I've recently adopted a {pet} which is a {breed}. "
-        "Could you suggest training tips?"
-    )
-])
+# -------------------------
+# Model
+# -------------------------
 
-
-
-def call_llm_stream(input_stream):
-    for prompt_value in input_stream:
-
-        messages = [
-            {
-                "role": "user" if msg.type == "human" else msg.type,
-                "content": msg.content
-            }
-            for msg in prompt_value.to_messages()
-        ]
-
-        response = completion(
-            model="openai/google/gemma-3-4b",
-            api_base="http://192.168.244.67:1234/v1",
-            api_key="lm-studio",
-            messages=messages,
-            max_tokens=256,
-            timeout=60,
-            stream=True,
-        )
-
-        for chunk in response:
-            content = chunk.choices[0].delta.content
-
-            if content:
-                yield content
+llm = ChatOpenAI(
+    model="google/gemma-3-4b",
+    base_url="http://192.168.244.67:1234/v1",
+    api_key="lm-studio",
+    max_tokens=3000,
+    temperature=0.7,
+)
 
 
-llm = RunnableGenerator(call_llm_stream)
+# -------------------------
+# Prompts
+# -------------------------
 
-chain = chat_template | llm
+chat_template_tools = ChatPromptTemplate.from_template("""
+What are the five most important tools a {job_title} needs?
+
+Answer only by listing the tools.
+""")
 
 
-inputs = [
-    {"pet": "dog", "breed": "German Shepherd"},
-    {"pet": "cat", "breed": "Siamese"},
-    {"pet": "dog", "breed": "Golden Retriever"},
-]
+chat_template_strategy = ChatPromptTemplate.from_template("""
+Considering the tools provided, develop a strategy for effectively
+learning and mastering them:
 
-responses = chain.batch(inputs)
+{tools}
+""")
 
-response = chain.stream({
-"pet": "dog", "breed": "Labrador"
-})
 
-for i in response:
-    print(i,end = '')
+# -------------------------
+# Chains
+# -------------------------
+
+tools_chain = chat_template_tools | llm | StrOutputParser() | {'tools': RunnablePassthrough()}
+
+strategy_chain = (
+    chat_template_strategy
+    | llm
+    | StrOutputParser()
+)
+
+
+# -------------------------
+# Run first chain
+# -------------------------
+
+chain_combined = tools_chain | strategy_chain
+
+
+
+# -------------------------
+# Feed result into second
+# -------------------------
+
+strategy = chain_combined.invoke({'job_title': 'frontend developer'})
+
+
+
+print(strategy)
