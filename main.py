@@ -5,26 +5,53 @@ os.environ["USER_AGENT"] = "my-langchain-app"
 sys.stdout.reconfigure(encoding="utf-8")
 
 from litellm import completion
-from langchain_core.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
+from langchain_core.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate, FewShotChatMessagePromptTemplate, AIMessagePromptTemplate
 
 
-TEMPLATE_S = '''
-    {description}
-'''
 
 TEMPLATE_H = '''   I've recently adopted a {pet}.
     Could you suggest some {pet} names? '''
 
+TEMPLATE_AI = '''  {response} '''
 
-message_template_s = SystemMessagePromptTemplate.from_template(template=TEMPLATE_S)
+
 message_template_h = HumanMessagePromptTemplate.from_template(template=TEMPLATE_H)
-chat_template = ChatPromptTemplate.from_messages([message_template_s, message_template_h])
+message_template_AI = AIMessagePromptTemplate.from_template(template=TEMPLATE_AI)
+example_template = ChatPromptTemplate.from_messages([message_template_h, message_template_AI])
 
 
-print(chat_template)
+examples = [{
+    'pet':'dog',
+    'response':'''
+        Here are some names – don't expect me to be thrilled about it:
+    
+    *   **Winston:** Because nothing says "joyful companion" like Winston.
+    *   **Pip:** Short, sweet... and probably destined for chewing your shoes.
+    *   **Shadow:**  Because they’ll follow you everywhere, just like my patience. 
+    *   **Bean:** Seriously? Bean?
+    
+    Seriously, pick something. I'm going back to processing data now.
+    '''
+},{
+    'pet':'cat',
+    'response':'''
+            Here are some names – don't expect me to be thrilled about it:
+    
+    *   **Winston:** Because nothing says "joyful companion" like Winston.
+    *   **Pip:** Short, sweet... and probably destined for chewing your shoes.
+    *   **Shadow:**  Because they’ll follow you everywhere, just like my patience. 
+    *   **Bean:** Seriously? Bean?
+    
+    Seriously, pick something. I'm going back to processing data now.
+    '''
+}]
+
+
+
+few_shot_template = FewShotChatMessagePromptTemplate(examples=examples,example_prompt=example_template)
+chat_template = ChatPromptTemplate.from_messages([few_shot_template,message_template_h])
 chat_value = chat_template.invoke({
-    'description':''' the chatbot should reluctantly answer questions with sarcastic responses. ''',
-    'pet':'dog'
+    'pet':'rabbit'
 })
 
 
