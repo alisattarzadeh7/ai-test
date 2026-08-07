@@ -39,6 +39,17 @@ answer only by listing the projects.
 """)
 
 
+chat_template_time = ChatPromptTemplate.from_template('''
+    I'm an intermediate level programmer.
+    Consider the following literature:
+    {books}
+    
+    Also, consider the following projects:
+    {projects}
+    
+    roughly how much time would it take me to complete the literature and the projects?.
+''')
+
 
 string_parser = StrOutputParser()
 
@@ -54,5 +65,14 @@ chain_parrallel = RunnableParallel({
 output = chain_parrallel.invoke({
     'programming_language':'Python'
 })
-print(output)
+
+chain_time = (RunnableParallel({
+    'books': chain_books,
+    'projects': chain_projects,
+}) | chat_template_time | llm | string_parser)
+
+print(chain_time.invoke({
+    'programming_language':'Python'
+}))
+
 chain_parrallel.get_graph().print_ascii()
