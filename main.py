@@ -1,13 +1,15 @@
-from langchain_core.runnables import RunnableLambda
+from langchain_community.document_loaders import PyPDFLoader
+import copy
 
 
-find_square = lambda x: x**2
+loader_pdf = PyPDFLoader('Introduction_to_Data_and_Data_Science.pdf')
+
+pages_pdf = loader_pdf.load()
+
+pages_pdf_cut = copy.deepcopy(pages_pdf)
 
 
-runnable_sum = RunnableLambda(lambda x: sum(x))
-runnable_square = RunnableLambda(lambda x: x**2)
+for i in pages_pdf_cut:
+    i.page_content = ''.join(pages_pdf_cut[i].page_content.split())
 
-
-chain = runnable_sum | runnable_square
-
-print(chain.invoke([1,2,3]))
+print(pages_pdf_cut)
