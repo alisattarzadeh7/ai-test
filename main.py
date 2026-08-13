@@ -1,15 +1,22 @@
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import Docx2txtLoader
 import copy
 
+from langchain_text_splitters import CharacterTextSplitter
 
-loader_pdf = PyPDFLoader('Introduction_to_Data_and_Data_Science.pdf')
+loader = Docx2txtLoader('Introduction_to_Data_and_Data_Science.docx')
 
-pages_pdf = loader_pdf.load()
+pages = loader.load()
 
-pages_pdf_cut = copy.deepcopy(pages_pdf)
+print(len(pages[0].page_content))
 
 
-for i in pages_pdf_cut:
-    i.page_content = ''.join(pages_pdf_cut[i].page_content.split())
+for i in range(len(pages)):
+    pages[i].page_content = ''.join(pages[i].page_content.split())
 
-print(pages_pdf_cut)
+print(len(pages[0].page_content))
+
+char_splitter = CharacterTextSplitter(separator=".", chunk_size= 500, chunk_overlap=0)
+
+page_char_split = char_splitter.split_documents(pages)
+
+print(len(page_char_split))
