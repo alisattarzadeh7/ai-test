@@ -1,53 +1,43 @@
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough, RunnableParallel
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from typing import TypedDict, Sequence
 
-from langchain_chroma import Chroma
-
-embeddings = OpenAIEmbeddings(
-    model="text-embedding-mxbai-embed-large-v1",
-    base_url="http://192.168.56.1:1234/v1",
-    api_key="lm-studio",
-    check_embedding_ctx_length=False,  # Important for LM Studio
-)
-
-vectorstore = Chroma(collection_name="data_science_course",persist_directory='./chroma_db',embedding_function=embeddings)
+from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.runnables import Runnable
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph,START,END
 
 
-retriever = vectorstore.as_retriever(search_type='mmr',search_kwargs={'k':3,'lambda_mult':0.7})
 
 
-TEMPLATE = '''
-Answer the question:
-{question}
-
-To answer the question, use only the following context:
-{context}
-
-At the end of the response, specify the name of the lecture this context is taken from in the format:
-Resources: *Lecture Title*
-where *Lecture Title* should be substituted with the title of all resource lectures.
-'''
+class State(TypedDict):
+    messages: Sequence[BaseMessage]
 
 
-prompt_template = PromptTemplate.from_template(TEMPLATE)
+state = State(messages=[HumanMessage("Could you tell me a grook by Piet Hein?")])
+
+
 
 chat = ChatOpenAI(
     model="google/gemma-3-4b",
-    base_url="http://192.168.56.1:1234/v1",
+    base_url="http://192.168.244.67:1234/v1",
     api_key="lm-studio",
     max_tokens=3000,
     temperature=0.7,
 )
 
+response  = chat.invoke(state["messages"])
 
-question  = "What software do data scientists use?"
-
-chain = {'context':retriever,'question': RunnablePassthrough()} | prompt_template | chat | StrOutputParser()
-
-result = chain.invoke(question)
-
-print(result)
+def chatbot(state:State)->State:
+    print(f"\n ----> ENTERING chatbot:")
+    response  = chat.invoke(state["messages"])
+    return  State(messages= [response])
 
 
+graph = StateGraph(State)
+
+graph.add_node("chatbot",chatbot)
+graph.add_edge(START,"chatbot")
+graph.add_edge("chatbot",END)
+
+graph_compiled =  graph.compile()
+
+print(graph_compiled.invoke(state))
